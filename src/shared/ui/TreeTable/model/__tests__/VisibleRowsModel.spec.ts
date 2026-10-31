@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { TreeStore, type SomeEntityItem } from '@/entities/SomeEntity';
 import { VisibleRowsModel } from '../rows';
-import type { ItemsTableRow } from '../../types';
+import { TreeStore } from '../TreeStore';
+import type { TreeNode, TreeRow } from '../../types';
 
-const items: SomeEntityItem[] = [
+type TestItem = TreeNode & { label: string };
+
+const items: TestItem[] = [
   { id: 1, parent: null, label: 'root' },
   { id: 2, parent: 1, label: 'group-a' },
   { id: 3, parent: 1, label: 'group-b' },
@@ -12,10 +14,10 @@ const items: SomeEntityItem[] = [
   { id: 6, parent: 3, label: 'leaf-c' },
 ];
 
-const createModel = (source: SomeEntityItem[] = items): VisibleRowsModel =>
+const createModel = (source: TestItem[] = items): VisibleRowsModel<TestItem> =>
   new VisibleRowsModel(new TreeStore(source));
 
-const ids = (rows: ItemsTableRow[]): Array<ItemsTableRow['id']> =>
+const ids = (rows: TreeRow<TestItem>[]): Array<TestItem['id']> =>
   rows.map((row) => row.id);
 
 describe('VisibleRowsModel', () => {
@@ -99,7 +101,7 @@ describe('VisibleRowsModel', () => {
   });
 
   it('handles insertion chunks larger than the chunk size', () => {
-    const source: SomeEntityItem[] = [{ id: 1, parent: null, label: 'root' }];
+    const source: TestItem[] = [{ id: 1, parent: null, label: 'root' }];
     for (let index = 0; index < 12_000; index += 1) {
       source.push({ id: index + 2, parent: 1, label: `child-${index}` });
     }

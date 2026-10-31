@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { treeRootParentId } from '../../config';
 import { TreeStore } from '../TreeStore';
-import type { SomeEntityItem } from '../../types';
+import type { TreeNode } from '../../types';
 
-const items: SomeEntityItem[] = [
+type TestItem = TreeNode & { label: string };
+
+const items: TestItem[] = [
   { id: 1, parent: null, label: 'root' },
   { id: 2, parent: 1, label: 'child-a' },
   { id: 3, parent: 1, label: 'child-b' },
@@ -11,11 +12,11 @@ const items: SomeEntityItem[] = [
   { id: 5, parent: 3, label: 'child-b-1' },
 ];
 
-const createStore = (): TreeStore => {
+const createStore = (): TreeStore<TestItem> => {
   return new TreeStore(items);
 };
 
-const ids = (values: readonly SomeEntityItem[]): Array<SomeEntityItem['id']> => {
+const ids = (values: readonly TestItem[]): Array<TestItem['id']> => {
   return values.map((item) => item.id);
 };
 
@@ -38,7 +39,7 @@ describe('TreeStore', () => {
     it('returns direct children in insertion order', () => {
       const store = createStore();
 
-      expect(ids(store.getChildren(treeRootParentId))).toEqual([1]);
+      expect(ids(store.getChildren(null))).toEqual([1]);
       expect(ids(store.getChildren(1))).toEqual([2, 3]);
       expect(ids(store.getChildren(3))).toEqual([5]);
       expect(store.getChildren('2.1')).toEqual([]);
@@ -64,14 +65,14 @@ describe('TreeStore', () => {
     });
 
     it('keeps numeric and string ids distinct', () => {
-      const store = new TreeStore([
+      const store = new TreeStore<TestItem>([
         { id: 1, parent: null, label: 'number' },
         { id: '1', parent: null, label: 'string' },
       ]);
 
       expect(store.getItem(1)?.label).toBe('number');
       expect(store.getItem('1')?.label).toBe('string');
-      expect(ids(store.getChildren(treeRootParentId))).toEqual([1, '1']);
+      expect(ids(store.getChildren(null))).toEqual([1, '1']);
     });
   });
 
@@ -84,7 +85,7 @@ describe('TreeStore', () => {
 
       expect(ids(store.getAll())).toEqual([10]);
       expect(store.getItem(1)).toBeUndefined();
-      expect(ids(store.getChildren(treeRootParentId))).toEqual([10]);
+      expect(ids(store.getChildren(null))).toEqual([10]);
     });
 
     it('rejects duplicate ids without changing the current tree', () => {
@@ -101,7 +102,7 @@ describe('TreeStore', () => {
     it('rejects duplicate ids in the constructor', () => {
       expect(
         () =>
-          new TreeStore([
+          new TreeStore<TestItem>([
             { id: 1, parent: null, label: 'first' },
             { id: 1, parent: null, label: 'second' },
           ]),
@@ -158,7 +159,7 @@ describe('TreeStore', () => {
       store.removeItem(1);
 
       expect(store.getAll()).toEqual([]);
-      expect(store.getChildren(treeRootParentId)).toEqual([]);
+      expect(store.getChildren(null)).toEqual([]);
     });
 
     it('ignores an unknown id', () => {
@@ -221,7 +222,7 @@ describe('TreeStore', () => {
 
   describe('cycles', () => {
     it('does not include the starting item in its descendants', () => {
-      const store = new TreeStore([
+      const store = new TreeStore<TestItem>([
         { id: 1, parent: 2, label: 'first' },
         { id: 2, parent: 1, label: 'second' },
       ]);

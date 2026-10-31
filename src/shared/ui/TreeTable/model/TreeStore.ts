@@ -1,20 +1,20 @@
-import type { ItemId, SomeEntityItem } from '../types';
+import type { TreeNode } from '../types';
 
-export class TreeStore {
-  private items: SomeEntityItem[] = [];
-  private itemById = new Map<ItemId, SomeEntityItem>();
-  private childrenByParent = new Map<ItemId | null, SomeEntityItem[]>();
-  private positionById = new Map<ItemId, number>();
+export class TreeStore<T extends TreeNode> {
+  private items: T[] = [];
+  private itemById = new Map<T['id'], T>();
+  private childrenByParent = new Map<T['id'] | null, T[]>();
+  private positionById = new Map<T['id'], number>();
 
-  constructor(items: SomeEntityItem[] = []) {
+  constructor(items: readonly T[] = []) {
     this.setItems(items);
   }
 
-  setItems(items: SomeEntityItem[]): void {
+  setItems(items: readonly T[]): void {
     const nextItems = items.slice();
-    const nextItemById = new Map<ItemId, SomeEntityItem>();
-    const nextChildrenByParent = new Map<ItemId | null, SomeEntityItem[]>();
-    const nextPositionById = new Map<ItemId, number>();
+    const nextItemById = new Map<T['id'], T>();
+    const nextChildrenByParent = new Map<T['id'] | null, T[]>();
+    const nextPositionById = new Map<T['id'], number>();
 
     for (let i = 0; i < nextItems.length; i += 1) {
       const item = nextItems[i];
@@ -40,24 +40,24 @@ export class TreeStore {
     this.positionById = nextPositionById;
   }
 
-  getAll(): readonly SomeEntityItem[] {
+  getAll(): readonly T[] {
     return this.items;
   }
 
-  getItem(id: ItemId): SomeEntityItem | undefined {
+  getItem(id: T['id']): T | undefined {
     return this.itemById.get(id);
   }
 
-  getChildren(id: ItemId | null): readonly SomeEntityItem[] {
+  getChildren(id: T['id'] | null): readonly T[] {
     return this.childrenByParent.get(id) ?? [];
   }
 
-  getAllChildren(id: ItemId): SomeEntityItem[] {
-    const result: SomeEntityItem[] = [];
-    const stack: SomeEntityItem[] = [];
-    const seen = new Set<ItemId>([id]);
+  getAllChildren(id: T['id']): T[] {
+    const result: T[] = [];
+    const stack: T[] = [];
+    const seen = new Set<T['id']>([id]);
 
-    const pushChildren = (parentId: ItemId | null): void => {
+    const pushChildren = (parentId: T['id'] | null): void => {
       const children = this.childrenByParent.get(parentId);
       if (!children) return;
       for (let i = children.length - 1; i >= 0; i -= 1) {
@@ -79,9 +79,9 @@ export class TreeStore {
     return result;
   }
 
-  getAllParents(id: ItemId): SomeEntityItem[] {
-    const result: SomeEntityItem[] = [];
-    const seen = new Set<ItemId>();
+  getAllParents(id: T['id']): T[] {
+    const result: T[] = [];
+    const seen = new Set<T['id']>();
     let current = this.itemById.get(id);
 
     while (current && !seen.has(current.id)) {
@@ -94,7 +94,7 @@ export class TreeStore {
     return result;
   }
 
-  addItem(item: SomeEntityItem): void {
+  addItem(item: T): void {
     if (item.parent === item.id) {
       throw new Error('Cannot add an item as its own parent');
     }
@@ -115,12 +115,12 @@ export class TreeStore {
     children.push(item);
   }
 
-  removeItem(id: ItemId): void {
+  removeItem(id: T['id']): void {
     const root = this.itemById.get(id);
     if (!root) return;
 
-    const idsToRemove = new Set<ItemId>();
-    const stack: SomeEntityItem[] = [root];
+    const idsToRemove = new Set<T['id']>();
+    const stack: T[] = [root];
 
     while (stack.length > 0) {
       const item = stack.pop();
@@ -153,7 +153,7 @@ export class TreeStore {
     }
   }
 
-  updateItem(item: SomeEntityItem): void {
+  updateItem(item: T): void {
     const current = this.itemById.get(item.id);
     const index = this.positionById.get(item.id);
 
@@ -184,7 +184,7 @@ export class TreeStore {
     this.itemById.set(item.id, item);
   }
 
-  private attachChild(item: SomeEntityItem): void {
+  private attachChild(item: T): void {
     let children = this.childrenByParent.get(item.parent);
     if (!children) {
       children = [];
@@ -193,7 +193,7 @@ export class TreeStore {
     children.push(item);
   }
 
-  private detachChild(parentId: ItemId | null, item: SomeEntityItem): void {
+  private detachChild(parentId: T['id'] | null, item: T): void {
     const children = this.childrenByParent.get(parentId);
     if (!children) return;
 

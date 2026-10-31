@@ -1,54 +1,28 @@
 <script setup lang="ts">
 import {
   computed,
-  defineAsyncComponent,
   onBeforeUnmount,
   onMounted,
   ref,
   shallowRef,
-  triggerRef,
 } from 'vue';
+import { SomeEntityApi, type SomeEntityItem } from '@/entities/SomeEntity';
+import { TreeTable } from '@/shared/ui/TreeTable';
 import {
-  SomeEntityApi,
-  TreeStore,
-  type ItemId,
-  type SomeEntityItem,
-} from '@/entities/SomeEntity';
-import { type RowsChange, VisibleRowsModel } from '../model/rows';
-import type { ItemsTableRow } from '../types';
-
-type GridApi = {
-  applyChanges?: (change: RowsChange) => void
-}
-
-const tableGridComponent = defineAsyncComponent(() => import('./ItemsTableGrid.vue'));
-
-const store = shallowRef(new TreeStore());
-const gridRows = shallowRef<ItemsTableRow[]>([]);
-const gridRef = ref<GridApi | null>(null);
+  getItemsRowLabel,
+  itemsTableColumnDefs,
+  itemsTableExpanderLabels,
+  itemsTableLocaleText,
+} from '../config';
 
 const api = new SomeEntityApi();
+const items = shallowRef<SomeEntityItem[]>([]);
 const isLoading = ref(true);
 const error = ref('');
 
 let activeController: AbortController | undefined;
-let rowsModel: VisibleRowsModel | undefined;
 
-const totalCount = computed(() => store.value.getAll().length);
-
-const setItems = (items: SomeEntityItem[]): void => {
-  store.value.setItems(items);
-  triggerRef(store);
-  rowsModel = new VisibleRowsModel(store.value);
-  gridRows.value = rowsModel.getRows().slice();
-};
-
-const toggle = (id: ItemId): void => {
-  const change = rowsModel?.toggle(id);
-  if (change) {
-    gridRef.value?.applyChanges?.(change);
-  }
-};
+const totalCount = computed(() => items.value.length);
 
 const loadItems = async (): Promise<void> => {
   activeController?.abort();
@@ -59,9 +33,9 @@ const loadItems = async (): Promise<void> => {
   error.value = '';
 
   try {
-    const items = await api.fetchItems(controller.signal);
+    const nextItems = await api.fetchItems(controller.signal);
     if (controller.signal.aborted) return;
-    setItems(items);
+    items.value = nextItems;
   } catch (cause) {
     if (controller.signal.aborted) return;
     error.value = cause instanceof Error ? cause.message : 'Не удалось загрузить элементы';
@@ -126,11 +100,12 @@ onBeforeUnmount(() => {
       v-else
       class="items-table__grid"
     >
-      <component
-        :is="tableGridComponent"
-        ref="gridRef"
-        :rows="gridRows"
-        :handle-toggle="toggle"
+      <TreeTable
+        :items="items"
+        :column-defs="itemsTableColumnDefs"
+        :get-row-label="getItemsRowLabel"
+        :expander-labels="itemsTableExpanderLabels"
+        :locale-text="itemsTableLocaleText"
       />
     </div>
   </div>

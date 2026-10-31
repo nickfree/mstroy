@@ -1,64 +1,53 @@
-import {
-  treeRootParentId,
-  type ItemId,
-  type SomeEntityItem,
-  type TreeStore,
-} from '@/entities/SomeEntity';
-import { insertionChunkSize } from '../config';
-import type { ItemsTableRow } from '../types';
+import { insertionChunkSize } from '../config/rows';
+import type { TreeStore } from './TreeStore';
+import type {
+  TreeNode,
+  TreeRow,
+  TreeRowCache,
+  TreeRowsChange,
+} from '../types';
 
-export type RowsChange = {
-  added: ItemsTableRow[]
-  removed: ItemsTableRow[]
-  updated: ItemsTableRow[]
-  addIndex: number | null
-}
-
-const createRow = (
-  tree: TreeStore,
-  item: SomeEntityItem,
+const createRow = <T extends TreeNode>(
+  tree: TreeStore<T>,
+  item: T,
   level: number,
   expanded: boolean,
-  cache?: Map<ItemId, ItemsTableRow>,
-): ItemsTableRow => {
+  cache?: TreeRowCache<T>,
+): TreeRow<T> => {
   const children = tree.getChildren(item.id);
   const hasChildren = children.length > 0;
-  const category = hasChildren ? 'Группа' : 'Элемент';
   const cached = cache?.get(item.id);
 
   if (
     cached &&
-    cached.parent === item.parent &&
-    cached.label === item.label &&
-    cached.level === level &&
-    cached.hasChildren === hasChildren &&
-    cached.expanded === expanded &&
-    cached.category === category
+    cached.item === item &&
+    cached.row.level === level &&
+    cached.row.hasChildren === hasChildren &&
+    cached.row.expanded === expanded
   ) {
-    return cached;
+    return cached.row;
   }
 
-  const row: ItemsTableRow = {
+  const row: TreeRow<T> = {
     ...item,
     hasChildren,
     expanded,
     level,
-    category,
   };
 
-  cache?.set(item.id, row);
+  cache?.set(item.id, { item, row });
   return row;
 };
 
-const collectRows = (
-  tree: TreeStore,
-  expandedIds: ReadonlySet<ItemId>,
-  initialItems: readonly SomeEntityItem[],
+const collectRows = <T extends TreeNode>(
+  tree: TreeStore<T>,
+  expandedIds: ReadonlySet<T['id']>,
+  initialItems: readonly T[],
   initialLevel: number,
-  cache?: Map<ItemId, ItemsTableRow>,
-): ItemsTableRow[] => {
-  const result: ItemsTableRow[] = [];
-  const stack: SomeEntityItem[] = [];
+  cache?: TreeRowCache<T>,
+): TreeRow<T>[] => {
+  const result: TreeRow<T>[] = [];
+  const stack: T[] = [];
   const levels: number[] = [];
 
   for (let i = initialItems.length - 1; i >= 0; i -= 1) {
@@ -86,47 +75,42 @@ const collectRows = (
   return result;
 };
 
-export const createExpandedIds = (tree: TreeStore): ReadonlySet<ItemId> =>
+export const createExpandedIds = <T extends TreeNode>(
+  tree: TreeStore<T>,
+): ReadonlySet<T['id']> =>
   new Set(
     tree
-      .getChildren(treeRootParentId)
+      .getChildren(null)
       .filter((item) => tree.getChildren(item.id).length > 0)
       .map((item) => item.id),
   );
 
-export const buildVisibleRows = (
-  tree: TreeStore,
-  expandedIds: ReadonlySet<ItemId>,
-  cache?: Map<ItemId, ItemsTableRow>,
-): ItemsTableRow[] =>
-  collectRows(
-    tree,
-    expandedIds,
-    tree.getChildren(treeRootParentId),
-    0,
-    cache,
-  );
+export const buildVisibleRows = <T extends TreeNode>(
+  tree: TreeStore<T>,
+  expandedIds: ReadonlySet<T['id']>,
+  cache?: TreeRowCache<T>,
+): TreeRow<T>[] => collectRows(tree, expandedIds, tree.getChildren(null), 0, cache);
 
-export class VisibleRowsModel {
-  private readonly tree: TreeStore;
-  private readonly expandedIds: Set<ItemId>;
-  private readonly cache = new Map<ItemId, ItemsTableRow>();
-  private readonly rows: ItemsTableRow[];
+export class VisibleRowsModel<T extends TreeNode> {
+  private readonly tree: TreeStore<T>;
+  private readonly expandedIds: Set<T['id']>;
+  private readonly cache: TreeRowCache<T> = new Map();
+  private readonly rows: TreeRow<T>[];
 
   constructor(
-    tree: TreeStore,
-    initiallyExpandedIds: ReadonlySet<ItemId> = createExpandedIds(tree),
+    tree: TreeStore<T>,
+    initiallyExpandedIds: ReadonlySet<T['id']> = createExpandedIds(tree),
   ) {
     this.tree = tree;
     this.expandedIds = new Set(initiallyExpandedIds);
     this.rows = buildVisibleRows(tree, this.expandedIds, this.cache);
   }
 
-  getRows(): ItemsTableRow[] {
+  getRows(): TreeRow<T>[] {
     return this.rows;
   }
 
-  toggle(id: ItemId): RowsChange | null {
+  toggle(id: T['id']): TreeRowsChange<T> | null {
     const index = this.rows.findIndex((row) => row.id === id);
     if (index === -1) return null;
 
@@ -138,7 +122,7 @@ export class VisibleRowsModel {
       : this.expand(index, row);
   }
 
-  private expand(index: number, row: ItemsTableRow): RowsChange {
+  private expand(index: number, row: TreeRow<T>): TreeRowsChange<T> {
     this.expandedIds.add(row.id);
 
     const updated = this.updateExpanded(row, true);
@@ -156,7 +140,7 @@ export class VisibleRowsModel {
     return { added, removed: [], updated: [updated], addIndex: index + 1 };
   }
 
-  private collapse(index: number, row: ItemsTableRow): RowsChange {
+  private collapse(index: number, row: TreeRow<T>): TreeRowsChange<T> {
     this.expandedIds.delete(row.id);
 
     let end = index + 1;
@@ -171,18 +155,18 @@ export class VisibleRowsModel {
     return { added: [], removed, updated: [updated], addIndex: null };
   }
 
-  private updateExpanded(
-    row: ItemsTableRow,
-    expanded: boolean,
-  ): ItemsTableRow {
+  private updateExpanded(row: TreeRow<T>, expanded: boolean): TreeRow<T> {
     if (row.expanded === expanded) return row;
 
-    const updated: ItemsTableRow = { ...row, expanded };
-    this.cache.set(row.id, updated);
+    const updated: TreeRow<T> = { ...row, expanded };
+    const cached = this.cache.get(row.id);
+    if (cached) {
+      this.cache.set(row.id, { item: cached.item, row: updated });
+    }
     return updated;
   }
 
-  private insertRows(index: number, rows: ItemsTableRow[]): void {
+  private insertRows(index: number, rows: TreeRow<T>[]): void {
     for (let end = rows.length; end > 0; end -= insertionChunkSize) {
       const start = Math.max(0, end - insertionChunkSize);
       this.rows.splice(index, 0, ...rows.slice(start, end));

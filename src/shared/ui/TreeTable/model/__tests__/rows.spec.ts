@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { TreeStore, type SomeEntityItem } from '@/entities/SomeEntity';
 import { buildVisibleRows, createExpandedIds } from '../rows';
-import type { ItemsTableRow } from '../../types';
+import { TreeStore } from '../TreeStore';
+import type { TreeNode, TreeRow, TreeRowCache } from '../../types';
 
-const items: SomeEntityItem[] = [
+type TestItem = TreeNode & { label: string };
+
+const items: TestItem[] = [
   { id: 1, parent: null, label: 'root' },
   { id: 2, parent: 1, label: 'child-a' },
   { id: 3, parent: 1, label: 'child-b' },
@@ -16,19 +18,19 @@ const items: SomeEntityItem[] = [
   { id: 9, parent: 8, label: 'root-2-child' },
 ];
 
-const createStore = (): TreeStore => {
+const createStore = (): TreeStore<TestItem> => {
   return new TreeStore(items);
 };
 
-const expanded = (...values: Array<ItemsTableRow['id']>): Set<ItemsTableRow['id']> => {
+const expanded = (...values: Array<TestItem['id']>): Set<TestItem['id']> => {
   return new Set(values);
 };
 
-const ids = (rows: ItemsTableRow[]): Array<ItemsTableRow['id']> => {
+const ids = (rows: TreeRow<TestItem>[]): Array<TestItem['id']> => {
   return rows.map((row) => row.id);
 };
 
-const levels = (rows: ItemsTableRow[]): number[] => {
+const levels = (rows: TreeRow<TestItem>[]): number[] => {
   return rows.map((row) => row.level);
 };
 
@@ -41,7 +43,7 @@ describe('ItemsTable rows', () => {
     });
 
     it('returns an empty set when no root has children', () => {
-      const store = new TreeStore([{ id: 1, parent: null, label: 'only' }]);
+      const store = new TreeStore<TestItem>([{ id: 1, parent: null, label: 'only' }]);
 
       expect([...createExpandedIds(store)]).toEqual([]);
     });
@@ -57,11 +59,6 @@ describe('ItemsTable rows', () => {
       expect(levels(rows)).toEqual([0, 0, 0]);
       expect(rows.map((row) => row.hasChildren)).toEqual([true, false, true]);
       expect(rows.map((row) => row.expanded)).toEqual([false, false, false]);
-      expect(rows.map((row) => row.category)).toEqual([
-        'Группа',
-        'Элемент',
-        'Группа',
-      ]);
     });
 
     it('shows children of expanded groups only', () => {
@@ -99,14 +96,13 @@ describe('ItemsTable rows', () => {
       expect(rows[3]).toMatchObject({
         id: '4.1',
         level: 3,
-        category: 'Элемент',
         hasChildren: false,
       });
     });
 
     it('reuses unchanged rows from the cache', () => {
       const store = createStore();
-      const cache = new Map<ItemsTableRow['id'], ItemsTableRow>();
+      const cache: TreeRowCache<TestItem> = new Map();
 
       const collapsedRows = buildVisibleRows(store, expanded(1), cache);
       const expandedRows = buildVisibleRows(store, expanded(1, 2), cache);
@@ -122,7 +118,7 @@ describe('ItemsTable rows', () => {
 
     it('invalidates a cached row when its source data changes', () => {
       const store = createStore();
-      const cache = new Map<ItemsTableRow['id'], ItemsTableRow>();
+      const cache: TreeRowCache<TestItem> = new Map();
       const rows = buildVisibleRows(store, expanded(), cache);
       const original = rows.find((row) => row.id === 1);
 
@@ -143,7 +139,6 @@ describe('ItemsTable rows', () => {
       expect(rows.find((row) => row.id === 7)).toMatchObject({
         expanded: true,
         hasChildren: false,
-        category: 'Элемент',
       });
     });
   });

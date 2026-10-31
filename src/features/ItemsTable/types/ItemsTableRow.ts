@@ -1,10 +1,4 @@
 import type { SomeEntityItem } from '@/entities/SomeEntity';
+import type { TreeRow } from '@/shared/ui/TreeTable';
 
-export type ItemCategory = 'Группа' | 'Элемент'
-
-export type ItemsTableRow = SomeEntityItem & {
-  hasChildren: boolean
-  expanded: boolean
-  level: number
-  category: ItemCategory
-}
+export type ItemsTableRow = TreeRow<SomeEntityItem>

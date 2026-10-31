@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, watch } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import {
   CellStyleModule,
@@ -6,18 +7,19 @@ import {
   ClientSideRowModelModule,
   LocaleModule,
   ModuleRegistry,
+  themeQuartz,
+  type ColDef,
   type GridApi,
+  type GridOptions,
   type GridReadyEvent,
 } from 'ag-grid-community';
-import type { ItemId } from '@/entities/SomeEntity';
+import type { TreeNode, TreeRow, TreeRowsChange } from '../types';
 import {
-  createColumnDefs,
-  itemsTableTheme,
-  tableDefaultColDef,
-  tableGridOptions,
-} from '../config';
-import type { RowsChange } from '../model/rows';
-import type { ItemsTableRow } from '../types';
+  treeDefaultColDef,
+  treeHeaderHeight,
+  treeRowHeight,
+  treeThemeParams,
+} from '../config/table';
 
 ModuleRegistry.registerModules([
   ClientSideRowModelModule,
@@ -27,21 +29,45 @@ ModuleRegistry.registerModules([
 ]);
 
 interface Props {
-  rows: ItemsTableRow[]
-  handleToggle: (id: ItemId) => void
+  rows: TreeRow<TreeNode>[]
+  columnDefs: ColDef[]
+  defaultColDef?: ColDef
+  localeText?: Record<string, string>
+  themeParams?: Record<string, string | number | boolean>
 }
+
+type ThemeParams = Parameters<typeof themeQuartz.withParams>[0];
 
 const props = defineProps<Props>();
 
-const columnDefs = createColumnDefs(props.handleToggle);
+const theme = computed(() =>
+  themeQuartz.withParams({
+    ...treeThemeParams,
+    ...props.themeParams,
+  } as ThemeParams),
+);
 
-let gridApi: GridApi<ItemsTableRow> | undefined;
+const gridOptions = computed<GridOptions<TreeRow<TreeNode>>>(() => ({
+  rowHeight: treeRowHeight,
+  headerHeight: treeHeaderHeight,
+  animateRows: false,
+  getRowId: ({ data }) => `${typeof data.id}:${String(data.id)}`,
+}));
 
-const onGridReady = (event: GridReadyEvent<ItemsTableRow>): void => {
+let gridApi: GridApi<TreeRow<TreeNode>> | undefined;
+
+const onGridReady = (event: GridReadyEvent<TreeRow<TreeNode>>): void => {
   gridApi = event.api;
 };
 
-const applyChanges = (change: RowsChange): void => {
+watch(
+  () => props.columnDefs,
+  (columnDefs) => {
+    gridApi?.setGridOption('columnDefs', columnDefs);
+  },
+);
+
+const applyChanges = (change: TreeRowsChange<TreeNode>): void => {
   gridApi?.applyTransaction({
     add: change.added,
     addIndex: change.addIndex,
@@ -55,18 +81,19 @@ defineExpose({ applyChanges });
 
 <template>
   <AgGridVue
-    class="items-table-grid"
-    :theme="itemsTableTheme"
-    :column-defs="columnDefs"
-    :default-col-def="tableDefaultColDef"
-    :row-data="rows"
-    :grid-options="tableGridOptions"
+    class="tree-grid"
+    :theme="theme"
+    :column-defs="props.columnDefs"
+    :default-col-def="props.defaultColDef ?? treeDefaultColDef"
+    :row-data="props.rows"
+    :grid-options="gridOptions"
+    :locale-text="props.localeText"
     @grid-ready="onGridReady"
   />
 </template>
 
 <style scoped lang="scss">
-.items-table-grid {
+.tree-grid {
   height: 100%;
 
   :deep(.ag-header-cell.ag-column-last)::after {
@@ -77,7 +104,7 @@ defineExpose({ applyChanges });
     display: none;
   }
 
-  :deep(.items-table-grid__expander) {
+  :deep(.tree-grid__expander) {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -85,7 +112,7 @@ defineExpose({ applyChanges });
     color: #5f6368;
   }
 
-  :deep(.items-table-grid__expander-button) {
+  :deep(.tree-grid__expander-button) {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -101,7 +128,7 @@ defineExpose({ applyChanges });
     }
   }
 
-  :deep(.items-table-grid__expander--group) {
+  :deep(.tree-grid__expander--group) {
     cursor: pointer;
 
     &::before {
@@ -120,7 +147,7 @@ defineExpose({ applyChanges });
     }
   }
 
-  :deep(.items-table-grid__expander--expanded)::before {
+  :deep(.tree-grid__expander--expanded)::before {
     transform: rotate(90deg);
   }
 }

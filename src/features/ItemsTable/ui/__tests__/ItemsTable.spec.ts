@@ -1,33 +1,34 @@
 // @vitest-environment happy-dom
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SomeEntityApi, TreeStore, type SomeEntityItem } from '@/entities/SomeEntity';
+import { describe, expect, it, vi } from 'vitest';
+import { SomeEntityApi, type SomeEntityItem } from '@/entities/SomeEntity';
 import ItemsTable from '../ItemsTable.vue';
-import type { RowsChange } from '../../model/rows';
 import type { ItemsTableRow } from '../../types';
+import {
+  itemsTableColumnDefs,
+  itemsTableExpanderLabels,
+  itemsTableLocaleText,
+} from '../../config';
 
-const applyChanges = vi.hoisted(() => vi.fn());
-
-vi.mock('vue', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('vue')>();
-  const gridStub = actual.defineComponent({
-    name: 'ItemsTableGrid',
-    props: {
-      rows: { type: Array, required: true },
-      handleToggle: { type: Function, required: true },
-    },
-    setup(props, { expose }) {
-      expose({ applyChanges });
-
-      return () =>
-        actual.h('div', { class: 'items-table-grid-stub' }, String(props.rows.length));
-    },
-  });
+vi.mock('@/shared/ui/TreeTable', async () => {
+  const { defineComponent, h } = await import('vue');
 
   return {
-    ...actual,
-    defineAsyncComponent: (() => gridStub) as typeof actual.defineAsyncComponent,
+    TreeTable: defineComponent({
+      name: 'TreeTable',
+      props: {
+        items: { type: Array, required: true },
+        columnDefs: { type: Array, required: true },
+        getRowLabel: { type: Function, required: true },
+        expanderLabels: { type: Object, default: undefined },
+        localeText: { type: Object, default: undefined },
+      },
+      setup(props) {
+        return () =>
+          h('div', { class: 'tree-table-stub' }, String((props.items as unknown[]).length));
+      },
+    }),
   };
 });
 
@@ -44,16 +45,12 @@ const settle = async (): Promise<void> => {
   await flushPromises();
 };
 
-const rowIds = (rows: ItemsTableRow[]): Array<ItemsTableRow['id']> => {
+const rowIds = (rows: SomeEntityItem[]): Array<SomeEntityItem['id']> => {
   return rows.map((row) => row.id);
 };
 
 describe('ItemsTable', () => {
-  beforeEach(() => {
-    applyChanges.mockClear();
-  });
-
-  it('shows loading, then renders the initially expanded tree', async () => {
+  it('shows loading, then passes loaded items to the tree', async () => {
     let resolveFetch: (value: SomeEntityItem[]) => void = () => undefined;
     const fetchItems = vi
       .spyOn(SomeEntityApi.prototype, 'fetchItems')
@@ -72,40 +69,33 @@ describe('ItemsTable', () => {
     resolveFetch(items);
     await settle();
 
-    const grid = wrapper.findComponent({ name: 'ItemsTableGrid' });
-    const rows = grid.props('rows') as ItemsTableRow[];
+    const tree = wrapper.findComponent({ name: 'TreeTable' });
 
-    expect(grid.exists()).toBe(true);
-    expect(rowIds(rows)).toEqual([1, 2, 3]);
+    expect(tree.exists()).toBe(true);
+    expect(rowIds(tree.props('items') as SomeEntityItem[])).toEqual([1, 2, 3, 4]);
     expect(wrapper.text()).toContain('Всего: 4');
   });
 
-  it('expands and collapses a group through the grid callback', async () => {
+  it('passes column config and labels to the tree', async () => {
     vi.spyOn(SomeEntityApi.prototype, 'fetchItems').mockResolvedValue(items);
     const wrapper = mount(ItemsTable);
 
     await settle();
 
-    const grid = wrapper.findComponent({ name: 'ItemsTableGrid' });
-    const handleToggle = grid.props('handleToggle') as (id: number) => void;
+    const tree = wrapper.findComponent({ name: 'TreeTable' });
+    const getRowLabel = tree.props('getRowLabel') as (row: ItemsTableRow) => string;
 
-    expect(rowIds(grid.props('rows') as ItemsTableRow[])).toEqual([1, 2, 3]);
+    const row: ItemsTableRow = {
+      ...items[0],
+      hasChildren: false,
+      expanded: false,
+      level: 0,
+    };
 
-    handleToggle(2);
-    await nextTick();
-
-    const expanded = applyChanges.mock.calls[0][0] as RowsChange;
-    expect(expanded.added.map((row) => row.id)).toEqual([4]);
-    expect(expanded.updated[0]).toMatchObject({ id: 2, expanded: true });
-    expect(expanded.addIndex).toBe(2);
-
-    handleToggle(2);
-    await nextTick();
-
-    const collapsed = applyChanges.mock.calls[1][0] as RowsChange;
-    expect(collapsed.removed.map((row) => row.id)).toEqual([4]);
-    expect(collapsed.updated[0]).toMatchObject({ id: 2, expanded: false });
-    expect(collapsed.addIndex).toBeNull();
+    expect(tree.props('columnDefs')).toBe(itemsTableColumnDefs);
+    expect(tree.props('expanderLabels')).toEqual(itemsTableExpanderLabels);
+    expect(tree.props('localeText')).toEqual(itemsTableLocaleText);
+    expect(getRowLabel(row)).toBe('root');
   });
 
   it('retries a failed request', async () => {
@@ -117,35 +107,14 @@ describe('ItemsTable', () => {
     await settle();
 
     expect(wrapper.text()).toContain('network down');
-    expect(wrapper.findComponent({ name: 'ItemsTableGrid' }).exists()).toBe(false);
+    expect(wrapper.findComponent({ name: 'TreeTable' }).exists()).toBe(false);
 
     await wrapper.get('button').trigger('click');
     await settle();
 
     expect(wrapper.text()).not.toContain('network down');
     expect(wrapper.text()).toContain('Всего: 4');
-    expect(wrapper.findComponent({ name: 'ItemsTableGrid' }).exists()).toBe(true);
-  });
-
-  it('reuses a single TreeStore instance across loads', async () => {
-    const setItemsSpy = vi.spyOn(TreeStore.prototype, 'setItems');
-    const duplicateItems = [...items, { id: 2, parent: 1, label: 'duplicate' }];
-
-    vi.spyOn(SomeEntityApi.prototype, 'fetchItems')
-      .mockResolvedValueOnce(duplicateItems)
-      .mockResolvedValueOnce(items);
-
-    const wrapper = mount(ItemsTable);
-    await settle();
-
-    expect(wrapper.text()).toContain('Item with id "2" already exists');
-
-    await wrapper.get('button').trigger('click');
-    await settle();
-
-    const grid = wrapper.findComponent({ name: 'ItemsTableGrid' });
-    expect(rowIds(grid.props('rows') as ItemsTableRow[])).toEqual([1, 2, 3]);
-    expect(new Set(setItemsSpy.mock.instances).size).toBe(1);
+    expect(wrapper.findComponent({ name: 'TreeTable' }).exists()).toBe(true);
   });
 
   it('aborts the request when unmounted', async () => {

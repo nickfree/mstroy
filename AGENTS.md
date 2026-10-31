@@ -12,6 +12,13 @@
 - Values shared by several features, entities, or other layers belong in `src/shared/config`.
 - Constants are named in camelCase.
 
+## Types
+
+- Exported type aliases and interfaces belong in the `types/` segment of the slice, for example `src/shared/ui/TreeTable/types/`.
+- Local, non-exported types stay next to their implementation: component `Props`/`Emits` interfaces and internal helper types.
+- A slice's public barrel re-exports only the types consumers actually need.
+- The convention is enforced by the `app/types-in-types-segment` ESLint rule.
+
 ## Vue components
 
 - Declare `Props` and `Emits` interfaces separately before `defineProps` and `defineEmits`.
