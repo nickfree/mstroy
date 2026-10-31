@@ -1,6 +1,10 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import type { ItemCategory, ItemsTableRow } from '../../types';
 import {
+  categoryIndentVar,
+  categoryMinWidth,
+  categoryValueClass,
   getItemsRowLabel,
   itemCategories,
   itemsTableColumnDefs,
@@ -30,10 +34,13 @@ const getCategory = (): ((params: { data?: ItemsTableRow }) => ItemCategory) =>
     params: { data?: ItemsTableRow },
   ) => ItemCategory;
 
-const getCategoryCellStyle = (): ((params: { data?: ItemsTableRow }) => Record<string, string>) =>
-  findColumn('category')?.cellStyle as (
+const getCategoryCellRenderer = (): ((params: { data?: ItemsTableRow }) => HTMLElement) =>
+  findColumn('category')?.cellRenderer as (
     params: { data?: ItemsTableRow },
-  ) => Record<string, string>;
+  ) => HTMLElement;
+
+const readCategoryIndent = (cell: HTMLElement): string =>
+  cell.style.getPropertyValue(categoryIndentVar);
 
 describe('ItemsTable columns', () => {
   it('uses the visible row index for row numbers', () => {
@@ -51,11 +58,20 @@ describe('ItemsTable columns', () => {
     expect(getValue({ data: { ...row, hasChildren: false } })).toBe(itemCategories.item);
   });
 
-  it('indents the category column by row level', () => {
-    const cellStyle = getCategoryCellStyle();
+  it('renders the category value with a level indent', () => {
+    const render = getCategoryCellRenderer();
+    const groupCell = render({ data: { ...row, hasChildren: true, level: 0 } });
+    const itemCell = render({ data: { ...row, hasChildren: false, level: 3 } });
 
-    expect(cellStyle({ data: { ...row, level: 0 } })).toEqual({ paddingLeft: '16px' });
-    expect(cellStyle({ data: { ...row, level: 3 } })).toEqual({ paddingLeft: '70px' });
+    expect(groupCell.className).toBe(categoryValueClass);
+    expect(groupCell.textContent).toBe(itemCategories.group);
+    expect(itemCell.textContent).toBe(itemCategories.item);
+    expect(readCategoryIndent(groupCell)).toBe('16px');
+    expect(readCategoryIndent(itemCell)).toBe('70px');
+  });
+
+  it('keeps the category column above the minimum width', () => {
+    expect(findColumn('category')?.minWidth).toBe(categoryMinWidth);
   });
 
   it('does not resize the last column', () => {
@@ -90,7 +106,10 @@ describe('ItemsTable columns', () => {
   });
 
   it('uses safe defaults when row data is missing', () => {
+    const cell = getCategoryCellRenderer()({});
+
     expect(getCategory()({})).toBe(itemCategories.item);
-    expect(getCategoryCellStyle()({})).toEqual({ paddingLeft: '16px' });
+    expect(cell.textContent).toBe(itemCategories.item);
+    expect(readCategoryIndent(cell)).toBe('16px');
   });
 });

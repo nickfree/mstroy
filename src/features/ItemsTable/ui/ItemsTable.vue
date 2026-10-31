@@ -191,6 +191,17 @@ onBeforeUnmount(() => {
   &__grid {
     flex: 1;
     min-height: 0;
+
+    :deep(.ag-cell.items-table__category) {
+      padding-left: 0;
+    }
+
+    :deep(.items-table__category-value) {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-indent: min(var(--items-table-category-indent, 0px), 60%);
+    }
   }
 }
 </style>
