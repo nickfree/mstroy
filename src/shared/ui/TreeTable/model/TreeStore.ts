@@ -103,6 +103,10 @@ export class TreeStore<T extends TreeNode> {
       throw new Error(`Item with id "${String(item.id)}" already exists`);
     }
 
+    if (item.parent !== null && !this.itemById.has(item.parent)) {
+      throw new Error(`Parent with id "${String(item.parent)}" not found`);
+    }
+
     this.items.push(item);
     this.itemById.set(item.id, item);
     this.positionById.set(item.id, this.items.length - 1);
@@ -162,6 +166,10 @@ export class TreeStore<T extends TreeNode> {
     }
 
     if (current.parent !== item.parent) {
+      if (item.parent !== null && !this.itemById.has(item.parent)) {
+        throw new Error(`Parent with id "${String(item.parent)}" not found`);
+      }
+
       const isDescendant = this.getAllChildren(item.id).some(
         (child) => child.id === item.parent,
       );

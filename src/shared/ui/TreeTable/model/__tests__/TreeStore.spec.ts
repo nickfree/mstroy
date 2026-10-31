@@ -139,6 +139,17 @@ describe('TreeStore', () => {
       );
       expect(store.getItem(7)).toBeUndefined();
     });
+
+    it('rejects a parent that does not exist', () => {
+      const store = createStore();
+
+      expect(() => store.addItem({ id: 7, parent: 999, label: 'orphan' })).toThrow(
+        'Parent with id "999" not found',
+      );
+      expect(store.getItem(7)).toBeUndefined();
+      expect(store.getAll()).toHaveLength(5);
+      expect(store.getChildren(999)).toEqual([]);
+    });
   });
 
   describe('removeItem', () => {
@@ -217,6 +228,17 @@ describe('TreeStore', () => {
       expect(() =>
         store.updateItem({ id: 999, parent: 1, label: 'unknown' }),
       ).toThrow('Item with id "999" not found');
+    });
+
+    it('rejects moving an item under a parent that does not exist', () => {
+      const store = createStore();
+
+      expect(() =>
+        store.updateItem({ id: 2, parent: 999, label: 'child-a' }),
+      ).toThrow('Parent with id "999" not found');
+      expect(ids(store.getChildren(1))).toEqual([2, 3]);
+      expect(store.getChildren(999)).toEqual([]);
+      expect(store.getItem(2)).toMatchObject({ parent: 1 });
     });
   });
 

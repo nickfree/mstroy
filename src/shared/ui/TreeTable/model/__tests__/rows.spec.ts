@@ -34,6 +34,14 @@ const levels = (rows: TreeRow<TestItem>[]): number[] => {
   return rows.map((row) => row.level);
 };
 
+class CyclicStore extends TreeStore<TestItem> {
+  override getChildren(id: TestItem['id'] | null): readonly TestItem[] {
+    const root = this.getItem(1);
+    if (id === 2 && root) return [root];
+    return super.getChildren(id);
+  }
+}
+
 describe('ItemsTable rows', () => {
   describe('createExpandedIds', () => {
     it('expands only root items that have children', () => {
@@ -140,6 +148,18 @@ describe('ItemsTable rows', () => {
         expanded: true,
         hasChildren: false,
       });
+    });
+
+    it('terminates on a cycle and keeps each id once', () => {
+      const store = new CyclicStore([
+        { id: 1, parent: null, label: 'root' },
+        { id: 2, parent: 1, label: 'child' },
+      ]);
+
+      const rows = buildVisibleRows(store, expanded(1, 2));
+
+      expect(ids(rows)).toEqual([1, 2]);
+      expect(levels(rows)).toEqual([0, 1]);
     });
   });
 });

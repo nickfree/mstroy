@@ -49,6 +49,7 @@ const collectRows = <T extends TreeNode>(
   const result: TreeRow<T>[] = [];
   const stack: T[] = [];
   const levels: number[] = [];
+  const seen = new Set<T['id']>();
 
   for (let i = initialItems.length - 1; i >= 0; i -= 1) {
     stack.push(initialItems[i]);
@@ -58,8 +59,9 @@ const collectRows = <T extends TreeNode>(
   while (stack.length > 0) {
     const item = stack.pop();
     const level = levels.pop();
-    if (!item || level === undefined) continue;
+    if (!item || level === undefined || seen.has(item.id)) continue;
 
+    seen.add(item.id);
     const children = tree.getChildren(item.id);
     const isExpanded = expandedIds.has(item.id);
     result.push(createRow(tree, item, level, isExpanded, cache));
