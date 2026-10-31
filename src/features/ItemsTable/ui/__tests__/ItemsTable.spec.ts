@@ -2,7 +2,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SomeEntityApi, type SomeEntityItem } from '@/entities/SomeEntity';
+import { SomeEntityApi, TreeStore, type SomeEntityItem } from '@/entities/SomeEntity';
 import ItemsTable from '../ItemsTable.vue';
 import type { RowsChange } from '../../model/rows';
 import type { ItemsTableRow } from '../../types';
@@ -123,7 +123,29 @@ describe('ItemsTable', () => {
     await settle();
 
     expect(wrapper.text()).not.toContain('network down');
+    expect(wrapper.text()).toContain('Всего: 4');
     expect(wrapper.findComponent({ name: 'ItemsTableGrid' }).exists()).toBe(true);
+  });
+
+  it('reuses a single TreeStore instance across loads', async () => {
+    const setItemsSpy = vi.spyOn(TreeStore.prototype, 'setItems');
+    const duplicateItems = [...items, { id: 2, parent: 1, label: 'duplicate' }];
+
+    vi.spyOn(SomeEntityApi.prototype, 'fetchItems')
+      .mockResolvedValueOnce(duplicateItems)
+      .mockResolvedValueOnce(items);
+
+    const wrapper = mount(ItemsTable);
+    await settle();
+
+    expect(wrapper.text()).toContain('Item with id "2" already exists');
+
+    await wrapper.get('button').trigger('click');
+    await settle();
+
+    const grid = wrapper.findComponent({ name: 'ItemsTableGrid' });
+    expect(rowIds(grid.props('rows') as ItemsTableRow[])).toEqual([1, 2, 3]);
+    expect(new Set(setItemsSpy.mock.instances).size).toBe(1);
   });
 
   it('aborts the request when unmounted', async () => {

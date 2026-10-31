@@ -6,6 +6,7 @@ import {
   onMounted,
   ref,
   shallowRef,
+  triggerRef,
 } from 'vue';
 import {
   SomeEntityApi,
@@ -36,9 +37,9 @@ let rowsModel: VisibleRowsModel | undefined;
 const totalCount = computed(() => store.value.getAll().length);
 
 const setItems = (items: SomeEntityItem[]): void => {
-  const tree = new TreeStore(items);
-  store.value = tree;
-  rowsModel = new VisibleRowsModel(tree);
+  store.value.setItems(items);
+  triggerRef(store);
+  rowsModel = new VisibleRowsModel(store.value);
   gridRows.value = rowsModel.getRows().slice();
 };
 
