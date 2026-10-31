@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ColDef } from 'ag-grid-community';
 import TreeTable from '../TreeTable.vue';
 import type { TreeNode, TreeRow, TreeRowsChange } from '../../types';
+import { treeDefaultColDef } from '../../config/table';
 
 const applyChanges = vi.hoisted(() => vi.fn());
 
@@ -112,5 +113,45 @@ describe('TreeTable', () => {
     await nextTick();
 
     expect(rowIds(grid.props('rows') as TreeRow<TreeNode>[])).toEqual([10]);
+  });
+
+  it('passes the default grid configuration and expander labels', () => {
+    const wrapper = mount(TreeTable, {
+      props: {
+        items,
+        columnDefs,
+        getRowLabel: (row: TreeRow<TreeNode>) => `item-${row.id}`,
+      },
+    });
+    const grid = wrapper.findComponent({ name: 'TreeGrid' });
+    const rows = grid.props('rows') as TreeRow<TreeNode>[];
+    const expander = (grid.props('columnDefs') as ColDef<TreeRow<TreeNode>>[])[0];
+    const render = expander.cellRenderer as (
+      params: { data?: TreeRow<TreeNode> },
+    ) => HTMLElement | string;
+    const button = render({ data: rows.find((row) => row.id === 2) }) as HTMLButtonElement;
+
+    expect(grid.props('defaultColDef')).toBe(treeDefaultColDef);
+    expect(grid.props('localeText')).toBeUndefined();
+    expect(grid.props('themeParams')).toBeUndefined();
+    expect(button.getAttribute('aria-label')).toBe('Expand «item-2»');
+  });
+
+  it('forwards custom column and theme configuration', () => {
+    const defaultColDef: ColDef<TreeRow<TreeNode>> = { sortable: true };
+    const themeParams = { rowHeight: 50 };
+    const wrapper = mount(TreeTable, {
+      props: {
+        items,
+        columnDefs,
+        getRowLabel: (row: TreeRow<TreeNode>) => `item-${row.id}`,
+        defaultColDef,
+        themeParams,
+      },
+    });
+    const grid = wrapper.findComponent({ name: 'TreeGrid' });
+
+    expect(grid.props('defaultColDef')).toEqual(defaultColDef);
+    expect(grid.props('themeParams')).toEqual(themeParams);
   });
 });

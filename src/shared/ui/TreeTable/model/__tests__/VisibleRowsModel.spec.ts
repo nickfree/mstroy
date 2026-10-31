@@ -100,6 +100,16 @@ describe('VisibleRowsModel', () => {
     expect(model.getRows()).toBe(rows);
   });
 
+  it('ignores a visible leaf without children', () => {
+    const model = new VisibleRowsModel(new TreeStore(items), new Set([1, 2, 3]));
+    const rows = model.getRows();
+    const leaf = rows.find((row) => row.id === 4);
+
+    expect(leaf).toMatchObject({ hasChildren: false });
+    expect(model.toggle(4)).toBeNull();
+    expect(model.getRows()).toBe(rows);
+  });
+
   it('handles insertion chunks larger than the chunk size', () => {
     const source: TestItem[] = [{ id: 1, parent: null, label: 'root' }];
     for (let index = 0; index < 12_000; index += 1) {

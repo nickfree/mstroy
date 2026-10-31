@@ -4,6 +4,8 @@ import {
   getItemsRowLabel,
   itemCategories,
   itemsTableColumnDefs,
+  itemsTableExpanderLabels,
+  itemsTableLocaleText,
 } from '../table';
 
 const row: ItemsTableRow = {
@@ -64,5 +66,31 @@ describe('ItemsTable columns', () => {
 
   it('provides the row label for accessible expander buttons', () => {
     expect(getItemsRowLabel(row)).toBe('Группа');
+  });
+
+  it('defines the columns in display order', () => {
+    expect(itemsTableColumnDefs.map((column) => column.colId ?? column.field)).toEqual([
+      'rowNumber',
+      'category',
+      'label',
+    ]);
+    expect(itemsTableColumnDefs.map((column) => column.headerName)).toEqual([
+      '№ п/п',
+      'Категория',
+      'Наименование',
+    ]);
+  });
+
+  it('provides expander labels and locale text', () => {
+    expect(itemsTableExpanderLabels).toEqual({
+      expand: 'Развернуть',
+      collapse: 'Свернуть',
+    });
+    expect(itemsTableLocaleText).toEqual({ noRowsToShow: 'Нет данных' });
+  });
+
+  it('uses safe defaults when row data is missing', () => {
+    expect(getCategory()({})).toBe(itemCategories.item);
+    expect(getCategoryCellStyle()({})).toEqual({ paddingLeft: '16px' });
   });
 });

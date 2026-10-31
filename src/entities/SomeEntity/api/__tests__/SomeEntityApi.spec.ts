@@ -48,4 +48,18 @@ describe('SomeEntityApi', () => {
     await assertion;
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('rejects immediately when the signal is already aborted', async () => {
+    vi.useFakeTimers();
+    const fetchMock = mockFetch([]);
+    const api = new SomeEntityApi('http://api.test');
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(api.fetchItems(controller.signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

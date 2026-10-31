@@ -138,6 +138,26 @@ describe('ItemsTable rows', () => {
       expect(updated?.label).toBe('renamed');
     });
 
+    it('invalidates a cached row when it gains children', () => {
+      const store = createStore();
+      const cache: TreeRowCache<TestItem> = new Map();
+      const rows = buildVisibleRows(store, expanded(), cache);
+      const original = rows.find((row) => row.id === 7);
+
+      store.addItem({ id: 10, parent: 7, label: 'new-child' });
+      const updatedRows = buildVisibleRows(store, expanded(), cache);
+      const updated = updatedRows.find((row) => row.id === 7);
+
+      expect(updated).not.toBe(original);
+      expect(updated).toMatchObject({ hasChildren: true, expanded: false });
+    });
+
+    it('returns no rows for an empty tree', () => {
+      const store = new TreeStore<TestItem>();
+
+      expect(buildVisibleRows(store, expanded())).toEqual([]);
+    });
+
     it('does not render descendants of collapsed leaf ids', () => {
       const store = createStore();
 

@@ -117,6 +117,32 @@ describe('ItemsTable', () => {
     expect(wrapper.findComponent({ name: 'TreeTable' }).exists()).toBe(true);
   });
 
+  it('shows a generic message for non-Error failures', async () => {
+    vi.spyOn(SomeEntityApi.prototype, 'fetchItems').mockRejectedValueOnce('offline');
+    const wrapper = mount(ItemsTable);
+
+    await settle();
+
+    expect(wrapper.text()).toContain('Не удалось загрузить элементы');
+    expect(wrapper.text()).not.toContain('offline');
+  });
+
+  it('formats the total number of loaded items', async () => {
+    const manyItems: SomeEntityItem[] = Array.from({ length: 1000 }, (_, index) => ({
+      id: index + 1,
+      parent: null,
+      label: `item-${index + 1}`,
+    }));
+    vi.spyOn(SomeEntityApi.prototype, 'fetchItems').mockResolvedValue(manyItems);
+    const wrapper = mount(ItemsTable);
+
+    await settle();
+
+    expect(wrapper.text()).toContain(
+      `Всего: ${manyItems.length.toLocaleString('ru-RU')}`,
+    );
+  });
+
   it('aborts the request when unmounted', async () => {
     let signal: AbortSignal | undefined;
     vi.spyOn(SomeEntityApi.prototype, 'fetchItems').mockImplementation(

@@ -19,6 +19,26 @@ class TestApi extends BaseApi {
   createItem(body: unknown): Promise<Item> {
     return this.post<Item>('/items', { body });
   }
+
+  createItemWithoutBody(): Promise<Item> {
+    return this.post<Item>('/items');
+  }
+
+  updateItem(body: unknown): Promise<Item> {
+    return this.put<Item>('/items/1', { body });
+  }
+
+  patchItem(body: unknown): Promise<Item> {
+    return this.patch<Item>('/items/1', { body });
+  }
+
+  removeItem(): Promise<void> {
+    return this.delete<void>('/items/1');
+  }
+
+  fetchWithTimeout(timeout: number): Promise<Item[]> {
+    return this.get<Item[]>('/items', { timeout });
+  }
 }
 
 const jsonResponse = (data: unknown): Response => {
@@ -196,5 +216,90 @@ describe('BaseApi', () => {
     await vi.advanceTimersByTimeAsync(10);
 
     await assertion;
+  });
+
+  it('uses a per-request timeout override', async () => {
+    vi.useFakeTimers();
+    hangingFetch();
+    const api = new TestApi('http://api.test', 10_000);
+    const request = api.fetchWithTimeout(10);
+    const assertion = expect(request).rejects.toThrow(
+      'Request timed out after 10 ms (http://api.test/items)',
+    );
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    await assertion;
+  });
+
+  it('sends PUT and PATCH with a serialized body', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ id: 1, label: 'updated' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 1, label: 'patched' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const api = new TestApi('http://api.test');
+
+    await api.updateItem({ label: 'updated' });
+    await api.patchItem({ label: 'patched' });
+
+    const [putUrl, putInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [patchUrl, patchInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+
+    expect(putUrl).toBe('http://api.test/items/1');
+    expect(putInit.method).toBe('PUT');
+    expect(putInit.body).toBe('{"label":"updated"}');
+    expect(headerValue(putInit, 'Content-Type')).toBe('application/json');
+
+    expect(patchUrl).toBe('http://api.test/items/1');
+    expect(patchInit.method).toBe('PATCH');
+    expect(patchInit.body).toBe('{"label":"patched"}');
+    expect(headerValue(patchInit, 'Content-Type')).toBe('application/json');
+  });
+
+  it('sends DELETE without a body or content type', async () => {
+    const fetchMock = mockFetch(new Response(null, { status: 204 }));
+    const api = new TestApi('http://api.test');
+
+    await expect(api.removeItem()).resolves.toBeUndefined();
+
+    const [url, init] = requestArgs(fetchMock);
+
+    expect(url).toBe('http://api.test/items/1');
+    expect(init.method).toBe('DELETE');
+    expect(init.body).toBeUndefined();
+    expect(headerValue(init, 'Content-Type')).toBeNull();
+  });
+
+  it('does not set a content type when the body is missing', async () => {
+    const fetchMock = mockFetch(jsonResponse({ id: 1, label: 'item' }));
+    const api = new TestApi('http://api.test');
+
+    await api.createItemWithoutBody();
+
+    const [, init] = requestArgs(fetchMock);
+
+    expect(init.method).toBe('POST');
+    expect(init.body).toBeUndefined();
+    expect(headerValue(init, 'Content-Type')).toBeNull();
+  });
+
+  it('aborts before fetch when the caller signal is already aborted', async () => {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      if (init?.signal?.aborted) {
+        return Promise.reject(new DOMException('Aborted', 'AbortError'));
+      }
+
+      return Promise.resolve(jsonResponse([]));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const api = new TestApi('http://api.test');
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(api.fetchItems(undefined, controller.signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

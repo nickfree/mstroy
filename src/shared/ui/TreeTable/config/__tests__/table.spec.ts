@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ColDef } from 'ag-grid-community';
 import type { TreeRow } from '../../types';
-import { createExpanderColumn, expanderColumnId } from '../table';
+import { createExpanderColumn, defaultExpanderLabels, expanderColumnId } from '../table';
 
 type TestItem = {
   id: number
@@ -64,5 +64,35 @@ describe('TreeTable expander column', () => {
     const render = getCellRenderer(createColumn());
 
     expect(render({ data: { ...row, hasChildren: false } })).toBe('');
+  });
+
+  it('renders nothing when the row is missing', () => {
+    const render = getCellRenderer(createColumn());
+
+    expect(render({})).toBe('');
+  });
+
+  it('falls back to the default labels', () => {
+    const column = createExpanderColumn<TestItem>(vi.fn(), (value) => value.label);
+    const button = getCellRenderer(column)({ data: row }) as HTMLButtonElement;
+
+    expect(button.getAttribute('aria-label')).toBe(
+      `${defaultExpanderLabels.expand} «Группа»`,
+    );
+  });
+
+  it('stops click propagation from the expander button', () => {
+    const handleToggle = vi.fn();
+    const column = createColumn(handleToggle);
+    const button = getCellRenderer(column)({ data: row }) as HTMLButtonElement;
+    const parent = document.createElement('div');
+    const parentClick = vi.fn();
+    parent.addEventListener('click', parentClick);
+    parent.appendChild(button);
+
+    button.click();
+
+    expect(handleToggle).toHaveBeenCalledWith(1);
+    expect(parentClick).not.toHaveBeenCalled();
   });
 });

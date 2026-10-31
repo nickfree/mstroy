@@ -108,6 +108,18 @@ describe('TreeStore', () => {
           ]),
       ).toThrow('Item with id "1" already exists');
     });
+
+    it('resets the tree when given an empty list', () => {
+      const store = createStore();
+
+      store.setItems([]);
+
+      expect(store.getAll()).toEqual([]);
+      expect(store.getChildren(null)).toEqual([]);
+      expect(store.getAllChildren(1)).toEqual([]);
+      expect(store.getAllParents(1)).toEqual([]);
+      expect(store.getItem(1)).toBeUndefined();
+    });
   });
 
   describe('addItem', () => {
@@ -120,6 +132,15 @@ describe('TreeStore', () => {
       expect(store.getItem(6)).toMatchObject({ id: 6, parent: 3 });
       expect(ids(store.getChildren(3))).toEqual([5, 6]);
       expect(ids(store.getAllChildren(1))).toEqual([2, '2.1', 3, 5, 6]);
+    });
+
+    it('adds a root item', () => {
+      const store = createStore();
+
+      store.addItem({ id: 6, parent: null, label: 'new-root' });
+
+      expect(ids(store.getAll())).toEqual([1, 2, 3, '2.1', 5, 6]);
+      expect(ids(store.getChildren(null))).toEqual([1, 6]);
     });
 
     it('rejects a duplicate id', () => {
@@ -173,6 +194,28 @@ describe('TreeStore', () => {
       expect(store.getChildren(null)).toEqual([]);
     });
 
+    it('removes a non-root item and its descendants from its parent', () => {
+      const store = createStore();
+
+      store.removeItem(3);
+
+      expect(ids(store.getAll())).toEqual([1, 2, '2.1']);
+      expect(ids(store.getChildren(1))).toEqual([2]);
+      expect(ids(store.getAllChildren(1))).toEqual([2, '2.1']);
+    });
+
+    it('keeps positions consistent for later updates after removal', () => {
+      const store = createStore();
+
+      store.removeItem(2);
+      store.updateItem({ id: 5, parent: 1, label: 'moved' });
+
+      expect(ids(store.getAll())).toEqual([1, 3, 5]);
+      expect(store.getItem(5)).toMatchObject({ parent: 1, label: 'moved' });
+      expect(ids(store.getChildren(1))).toEqual([3, 5]);
+      expect(ids(store.getChildren(3))).toEqual([]);
+    });
+
     it('ignores an unknown id', () => {
       const store = createStore();
 
@@ -203,6 +246,17 @@ describe('TreeStore', () => {
       expect(ids(store.getChildren(3))).toEqual([5, 2]);
       expect(ids(store.getAllParents(2))).toEqual([2, 3, 1]);
       expect(ids(store.getAllChildren(1))).toEqual([3, 5, 2, '2.1']);
+    });
+
+    it('moves an item to the root', () => {
+      const store = createStore();
+
+      store.updateItem({ id: 5, parent: null, label: 'child-b-1' });
+
+      expect(ids(store.getChildren(null))).toEqual([1, 5]);
+      expect(ids(store.getChildren(3))).toEqual([]);
+      expect(ids(store.getAllParents(5))).toEqual([5]);
+      expect(ids(store.getAllChildren(5))).toEqual([]);
     });
 
     it('rejects moving an item into its own subtree', () => {
