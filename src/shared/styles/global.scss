@@ -1,0 +1,16 @@
+$color-text: #202124;
+$color-background: #f5f6f8;
+$font-family-base: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: $color-background;
+  color: $color-text;
+  font-family: $font-family-base;
+}
